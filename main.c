@@ -2,6 +2,7 @@
 #include<getopt.h>
 #include<string.h>
 #include<stdlib.h>
+#include<ctype.h>
 
 #define PROGRAM "wc"
 #define VERSION "truncet-wc-0.1"
@@ -52,15 +53,81 @@ int check_length_limit(char *value){
   return 1;
 }
 
+int get_bytes_val(char c){
+  int numBytes = 0;
+  while ((c & 0b10000000) == 0b10000000){
+    c <<= 1;
+    ++numBytes;
+  }
+
+  if (numBytes == 0){
+    numBytes = 1;
+  }
+  return numBytes;
+}
+
 
 int find_params(char *file_name, int bytes_val, int char_val, int line_val, int words_val, int max_line_val){
+
+
+  int no_of_chars = 0;
+  int no_of_bytes = 0;
+  int no_of_lines = 0;
+  int no_of_words = 0;
+  int max_line = 0;
+  int max_in_a_line = 0;
+
+  int results[5] = {-1, -1, -1, -1, -1};
+  char c;
+
+  char prev_value = '\0';
+
+  FILE *file;
+  
+  file = fopen(file_name, "r");
+  if(file == NULL){
+    fputs("Error opening the file\n", stdout);
+  }
+  while((c =fgetc(file)) != EOF){
+    ++no_of_chars;  // this is for calculating no of chars
+
+    no_of_bytes += get_bytes_val(c);  // this is for calculating no of bytes
+
+    if (isspace(prev_value) || prev_value == '\0'){
+      if(!(isspace(c))){
+        ++no_of_words;
+      }
+    }
+    max_line += isspace(c)?0: 1;
+    if (c == '\n'){
+      ++no_of_lines;
+      if (max_line > max_in_a_line){
+        max_in_a_line = max_line;
+        max_line = 0;
+      }
+    }
+
+    prev_value = c;
+  }
+  if (line_val) results[0] = no_of_lines;
+  if (words_val) results[1] = no_of_words;
+  if (char_val) results[2] = no_of_chars;
+  if (bytes_val) results[3] = no_of_bytes;
+  if (max_line_val) results[4] = max_in_a_line > max_line? max_in_a_line: max_line;
+
+  for (int i = 0; i < 5; ++i){
+    if (results[i] != -1){
+      printf("%d ", results[i]);
+    }
+  }
+  printf("%s\n", file_name);
+
   return 0;
 }
 
 int implement_characters(char *value){
   printf("%s", value);
   return 0;
-
 }
 
 int implement_bytes(char *value){
@@ -113,11 +180,11 @@ int main(int argc, char *argv[]){
   while ( (option_val = getopt_long(argc, argv, "cmlLw", long_options, &option_index)) != -1) {
     switch (option_val){
       case('c'):
-        char_val = 1;
+        bytes_val = 1;
         break;
       
       case ('m'):
-        bytes_val = 1;
+        char_val = 1;
         break;
       
       case ('l'):
@@ -149,14 +216,18 @@ int main(int argc, char *argv[]){
       default:
         exit(1);
     }
-
   }
 
+  if (!char_val && !bytes_val && !line_val && !max_line_val && !words_val) {
+        line_val = words_val = char_val = 1;
+  }
 
   for (int i = optind; i < argc; i++){
-    printf("Filename %s\n", argv[i]);
-    find_params(argv[i], char_val, bytes_val, line_val, words_val, max_line_val);
+    if (check_length_limit(argv[i]))
+      find_params(argv[i], char_val, bytes_val, line_val, words_val, max_line_val);
+    else{
+      printf("\nThe length of filename is longer than %d\n", MAX_INPUT_LENGTH);
+    }
   }
-
   return 0;
 }
